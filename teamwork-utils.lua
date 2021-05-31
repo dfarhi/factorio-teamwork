@@ -131,3 +131,7 @@ end
 function ends_with(str, ending)
    return ending == "" or str:sub(-#ending) == ending
 end
+
+function table.random_sample(table)
+    return table[math.random(#table)]
+end

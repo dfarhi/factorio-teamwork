@@ -81,13 +81,39 @@ local function disableAllBackfillTechs()
 	end
 end
 
-local function allyResearchedTech(tech_name)
+local function random_other_force(force)
+	-- Choose a random other force, weighted by number of players.
+	local other_people = {}
+	for _, player in pairs(game.players) do
+		if player.force ~= force then
+			other_people[#other_people+1] = player
+		end
+		if #other_people > 0 then
+			return other_people[math.random(#other_people)].force
+		end
+	end
+end
+
+local function force_name_with_random_member(force)
+	local result = force.name
+	if #force.players > 0 then
+		result = result .. " (" .. table.random_sample(force.players).name .. ")"
+	end
+	return result
+end
+
+local function allyResearchedTech(tech_name, researching_force, freebie_force)
+	local alert_string = "Team " .. force_name_with_random_member(researching_force) .. " researched tech " .. tech_name  .. "."
+
+	if freebie_force ~= nil then
+		alert_string = alert_string .. " It was randomly shared with team " .. force_name_with_random_member(freebie_force) .. "."
+	end
+	for _, player in pairs(game.players) do
+		player.print(alert_string)
+	end
+
 	for name, force in pairs(playerForces()) do
 		if not force.technologies[tech_name].researched then
-			for _, player in pairs(force.players) do
-				player.print("Ally researched tech " .. tech_name)
-			end
-
 			force.technologies[tech_name].researched = true
 			for _, effect in pairs(force.technologies[tech_name].effects) do
 				if effect.type == 'unlock-recipe' then
@@ -111,12 +137,6 @@ local function expensifyTech(tech_name)
 	end
 end
 
-local function someoneHas(tech_name)
-	for _, force in pairs(playerForces()) do
-		if force.technologies[tech_name].researched then return true end
-	end
-	return false
-end
 
 DIVIDER_ITEMS_UNLOCKED = {
 	['teamwork-divider-belts'] = {
@@ -167,18 +187,33 @@ DIVIDER_ITEMS_UNLOCKED = {
 local function isDividerEnablingTech(tech)
 	return starts_with(tech.name, 'teamwork-divider')
 end
+global.already_completed_techs = {}
 local function ResearchCompleted(event)
+	-- Only run this once for each tech
+	-- Without this global.already_completed_techs machinery, the tech.researched=true calls
+	-- inside this function would cause it to trigger recursively.
+	if global.already_completed_techs[event.research.name] then return end
+	global.already_completed_techs[event.research.name] = true
+
 	if isDividerEnablingTech(event.research) then
 		for item_name, _ in pairs(DIVIDER_ITEMS_UNLOCKED[event.research.name]) do
 			add_divider_allowed_item(item_name)
 		end
-		allyResearchedTech(event.research.name)
+		allyResearchedTech(event.research.name, event.research.force)
 		return
 	end
 	-- Don't disable upgrade-type techs.
 	if isSharedTech(event.research) then
+		-- In 4 player, give techs also to another random person
+		local freebie_force
+		if settings.global["num-teams"].value == "four-player" then
+			freebie_force = random_other_force(event.research.force)
+			if freebie_force ~= nil then
+				freebie_force.technologies[event.research.name].researched = true
+			end
+		end
 		expensifyTech(event.research.name)
-		allyResearchedTech(event.research.name)
+		allyResearchedTech(event.research.name, event.research.force, freebie_force)
 	end
 
 end
