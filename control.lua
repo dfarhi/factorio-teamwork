@@ -251,7 +251,11 @@ local function Init()
 		min_y = 0,
 		max_y = 0,
 	}
-	global.next_expand_tick = ExpandPeriod(0, settings)
+	if settings.global["expand"].value ~= "none" then
+		global.next_expand_tick = ExpandPeriod(0, settings)
+	else
+        	global.next_expand_tick = 2147483646
+	end
 	if settings.global["num-teams"].value == "two-player" then
 		create_peaceful_force('left', {x=-20, y=-20})
 		create_peaceful_force('right', {x=20, y=-20})
